@@ -4,10 +4,6 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: latest
-    triggering:
-      events:
-        - push
-      branch: main
     scripts:
       - name: Install XcodeGen
         script: |
