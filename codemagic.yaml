@@ -21,3 +21,41 @@ workflows:
             -destination "generic/platform=iOS Simulator" \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+  ios-unsigned-ipa:
+    name: iOS Unsigned IPA
+    max_build_duration: 60
+    environment:
+      xcode: latest
+    scripts:
+      - name: Install XcodeGen
+        script: |
+          brew install xcodegen
+
+      - name: Generate Xcode project
+        script: |
+          xcodegen generate
+
+      - name: Build app for iPhone device
+        script: |
+          xcodebuild \
+            -project Sync.xcodeproj \
+            -scheme Sync \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Create unsigned IPA
+        script: |
+          mkdir -p build/ipa/Payload
+          cp -R build/DerivedData/Build/Products/Release-iphoneos/Sync.app build/ipa/Payload/Sync.app
+          cd build/ipa
+          zip -r Sync-unsigned.ipa Payload
+
+    artifacts:
+      - build/ipa/Sync-unsigned.ipa
