@@ -32,56 +32,43 @@ workflows:
       - name: Decode certificate and profile
         script: |
           set -e
-
           printf '%s' "$CERTIFICATE_P12_BASE64" | tr -d '\r\n ' | openssl base64 -d -A > certificate.p12
           printf '%s' "$PROVISIONING_PROFILE_BASE64" | tr -d '\r\n ' | openssl base64 -d -A > profile.mobileprovision
-
           ls -l certificate.p12 profile.mobileprovision
 
       - name: Import certificate into keychain
         script: |
           set -e
-
           KEYCHAIN_PATH="$HOME/build.keychain"
           KEYCHAIN_PASSWORD="temporary-keychain-password"
-
           security delete-keychain "$KEYCHAIN_PATH" || true
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 3600 "$KEYCHAIN_PATH"
-
           security import certificate.p12 -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
           echo "Code signing identities:"
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
       - name: Install provisioning profile and extract signing info
         script: |
           set -e
-
           PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILE_DIR"
-
           security cms -D -i profile.mobileprovision > profile.plist
-
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" profile.plist)
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" profile.plist)
           TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" profile.plist)
           APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" profile.plist)
           EXPIRATION=$(/usr/libexec/PlistBuddy -c "Print :ExpirationDate" profile.plist || echo unknown)
-
           PROFILE_BUNDLE_ID="${APP_ID#*.}"
-
           if [ "$PROFILE_BUNDLE_ID" = "*" ]; then
             BUNDLE_ID="$DEFAULT_BUNDLE_ID"
           else
             BUNDLE_ID="$PROFILE_BUNDLE_ID"
           fi
-
           PROVISIONS_ALL_DEVICES=$(/usr/libexec/PlistBuddy -c "Print :ProvisionsAllDevices" profile.plist 2>/dev/null || echo false)
-
           if [ "$PROVISIONS_ALL_DEVICES" = "true" ]; then
             METHOD="ad-hoc"
           elif /usr/libexec/PlistBuddy -c "Print :ProvisionedDevices" profile.plist >/dev/null 2>&1; then
@@ -89,49 +76,45 @@ workflows:
           else
             METHOD="app-store"
           fi
-
           cp profile.mobileprovision "$PROFILE_DIR/$PROFILE_UUID.mobileprovision"
-
           echo "PROFILE_UUID=$PROFILE_UUID"
           echo "PROFILE_NAME=$PROFILE_NAME"
           echo "TEAM_ID=$TEAM_ID"
           echo "BUNDLE_ID=$BUNDLE_ID"
           echo "METHOD=$METHOD"
           echo "EXPIRATION=$EXPIRATION"
-
           echo "$PROFILE_UUID" > .profile_uuid
           echo "$TEAM_ID" > .team_id
           echo "$BUNDLE_ID" > .bundle_id
           echo "$METHOD" > .method
-
-          cat > ExportOptions.plist <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>$METHOD</string>
-    <key>teamID</key>
-    <string>$TEAM_ID</string>
-    <key>signingStyle</key>
-    <string>manual</string>
-    <key>provisioningProfiles</key>
-    <dict>
-        <key>$BUNDLE_ID</key>
-        <string>$PROFILE_UUID</string>
-    </dict>
-</dict>
-</plist>
-EOF
+          
+          # YAMLのインデントエラーを避けるため echo で書き出し
+          {
+            echo '<?xml version="1.0" encoding="UTF-8"?>'
+            echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+            echo '<plist version="1.0">'
+            echo '<dict>'
+            echo '    <key>method</key>'
+            echo "    <string>$METHOD</string>"
+            echo '    <key>teamID</key>'
+            echo "    <string>$TEAM_ID</string>"
+            echo '    <key>signingStyle</key>'
+            echo '    <string>manual</string>'
+            echo '    <key>provisioningProfiles</key>'
+            echo '    <dict>'
+            echo "        <key>$BUNDLE_ID</key>"
+            echo "        <string>$PROFILE_UUID</string>"
+            echo '    </dict>'
+            echo '</dict>'
+            echo '</plist>'
+          } > ExportOptions.plist
 
       - name: Archive
         script: |
           set -e
-
           PROFILE_UUID=$(cat .profile_uuid)
           TEAM_ID=$(cat .team_id)
           BUNDLE_ID=$(cat .bundle_id)
-
           xcodebuild \
             -project "$PROJECT_NAME.xcodeproj" \
             -scheme "$SCHEME" \
@@ -149,13 +132,11 @@ EOF
       - name: Export IPA
         script: |
           set -e
-
           xcodebuild \
             -exportArchive \
             -archivePath build/$PROJECT_NAME.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
             -exportPath build/ipa
-
           ls -l build/ipa
 
     artifacts:
