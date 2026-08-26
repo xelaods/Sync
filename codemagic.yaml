@@ -4,6 +4,8 @@ workflows:
     max_build_duration: 60
     environment:
       xcode: latest
+      groups:
+        - signing
     scripts:
       - name: Install XcodeGen
         script: |
