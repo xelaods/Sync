@@ -32,15 +32,46 @@ workflows:
       - name: Decode certificate and profile
         script: |
           set -e
-          echo "Decoding certificate..."
-          echo "$CERTIFICATE_P12_BASE64" | tr -d '\n\r\t ' | base64 -d > certificate.p12
-          
-          echo "Decoding profile..."
-          echo "$PROVISIONING_PROFILE_BASE64" | tr -d '\n\r\t ' | base64 -d > profile.mobileprovision
+          python3 << 'EOF'
+          import os, base64, sys
+
+          p12_b64 = os.environ.get('CERTIFICATE_P12_BASE64', '')
+          profile_b64 = os.environ.get('PROVISIONING_PROFILE_BASE64', '')
+
+          # 改行や空白を完全に除去してクリーンな文字列にする
+          p12_b64 = ''.join(p12_b64.split())
+          profile_b64 = ''.join(profile_b64.split())
+
+          print(f"Debug: P12 Base64 length is {len(p12_b64)}")
+          print(f"Debug: Profile Base64 length is {len(profile_b64)}")
+
+          if len(p12_b64) == 0:
+              print("ERROR: CERTIFICATE_P12_BASE64 is empty.")
+              sys.exit(1)
+              
+          if len(profile_b64) == 0:
+              print("ERROR: PROVISIONING_PROFILE_BASE64 is empty.")
+              sys.exit(1)
+
+          try:
+              with open('certificate.p12', 'wb') as f:
+                  f.write(base64.b64decode(p12_b64))
+              print("Decoded certificate.p12 successfully.")
+          except Exception as e:
+              print(f"Failed to decode P12: {e}")
+              sys.exit(1)
+
+          try:
+              with open('profile.mobileprovision', 'wb') as f:
+                  f.write(base64.b64decode(profile_b64))
+              print("Decoded profile.mobileprovision successfully.")
+          except Exception as e:
+              print(f"Failed to decode Profile: {e}")
+              sys.exit(1)
+          EOF
           
           echo "--- File Info ---"
           ls -l certificate.p12 profile.mobileprovision
-          file certificate.p12 profile.mobileprovision
 
       - name: Import certificate into keychain
         script: |
