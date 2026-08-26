@@ -1,6 +1,6 @@
 workflows:
-  ios-compile-check:
-    name: iOS Compile Check
+  ios-signed-ipa:
+    name: iOS Signed IPA
     max_build_duration: 60
     environment:
       xcode: latest
@@ -13,49 +13,16 @@ workflows:
         script: |
           xcodegen generate
 
-      - name: Build without code signing
+      - name: Set up code signing profiles
         script: |
-          xcodebuild \
-            -project Sync.xcodeproj \
-            -scheme Sync \
-            -destination "generic/platform=iOS Simulator" \
-            CODE_SIGNING_ALLOWED=NO \
-            build
+          xcode-project use-profiles --project Sync.xcodeproj
 
-  ios-unsigned-ipa:
-    name: iOS Unsigned IPA
-    max_build_duration: 60
-    environment:
-      xcode: latest
-    scripts:
-      - name: Install XcodeGen
+      - name: Build signed IPA
         script: |
-          brew install xcodegen
-
-      - name: Generate Xcode project
-        script: |
-          xcodegen generate
-
-      - name: Build app for iPhone device
-        script: |
-          xcodebuild \
-            -project Sync.xcodeproj \
-            -scheme Sync \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination "generic/platform=iOS" \
-            -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            build
-
-      - name: Create unsigned IPA
-        script: |
-          mkdir -p build/ipa/Payload
-          cp -R build/DerivedData/Build/Products/Release-iphoneos/Sync.app build/ipa/Payload/Sync.app
-          cd build/ipa
-          zip -r Sync-unsigned.ipa Payload
-
+          xcode-project build-ipa \
+            --project Sync.xcodeproj \
+            --scheme Sync \
+            --config Release
+    
     artifacts:
-      - build/ipa/Sync-unsigned.ipa
+      - build/ios/ipa/*.ipa
