@@ -32,9 +32,15 @@ workflows:
       - name: Decode certificate and profile
         script: |
           set -e
-          printf '%s' "$CERTIFICATE_P12_BASE64" | tr -d '\r\n ' | openssl base64 -d -A > certificate.p12
-          printf '%s' "$PROVISIONING_PROFILE_BASE64" | tr -d '\r\n ' | openssl base64 -d -A > profile.mobileprovision
+          echo "Decoding certificate..."
+          echo "$CERTIFICATE_P12_BASE64" | tr -d '\n\r\t ' | base64 -d > certificate.p12
+          
+          echo "Decoding profile..."
+          echo "$PROVISIONING_PROFILE_BASE64" | tr -d '\n\r\t ' | base64 -d > profile.mobileprovision
+          
+          echo "--- File Info ---"
           ls -l certificate.p12 profile.mobileprovision
+          file certificate.p12 profile.mobileprovision
 
       - name: Import certificate into keychain
         script: |
@@ -88,7 +94,6 @@ workflows:
           echo "$BUNDLE_ID" > .bundle_id
           echo "$METHOD" > .method
           
-          # YAMLのインデントエラーを避けるため echo で書き出し
           {
             echo '<?xml version="1.0" encoding="UTF-8"?>'
             echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
