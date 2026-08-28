@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 enum ShiftKind: String, Codable, CaseIterable, Identifiable {
     case normal = "通常"
