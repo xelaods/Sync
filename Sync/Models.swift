@@ -6,6 +6,14 @@ enum ShiftKind: String, Codable, CaseIterable, Identifiable {
     case night = "夜勤"
 
     var id: String { rawValue }
+
+    var color: Color {
+        switch self {
+        case .normal: return Theme.normal
+        case .holiday: return Theme.holiday
+        case .night: return Theme.night
+        }
+    }
 }
 
 struct Shift: Identifiable, Codable, Hashable {
@@ -13,10 +21,11 @@ struct Shift: Identifiable, Codable, Hashable {
     var title: String = "勤務"
     var start: Date = Date()
     var end: Date = Date().addingTimeInterval(8 * 3600)
-    var breakMinutes: Int = 60
+    var breakMinutes: Int = 0
     var kind: ShiftKind = .normal
     var isExcluded: Bool = false
     var memo: String = ""
+    var isFromCalendar: Bool = false
 }
 
 struct WageSettings: Codable {
