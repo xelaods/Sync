@@ -1,16 +1,19 @@
 import SwiftUI
 
 enum Theme {
-    static let primary = Color(red: 0.31, green: 0.27, blue: 0.90)
-    static let primaryLight = Color(red: 0.23, green: 0.51, blue: 0.96)
-    static let background = Color(red: 0.96, green: 0.97, blue: 0.99)
-    static let card = Color.white
-    static let textPrimary = Color(red: 0.12, green: 0.14, blue: 0.25)
-    static let textSecondary = Color(red: 0.45, green: 0.48, blue: 0.58)
+    static let primary = Color(red: 0.45, green: 0.40, blue: 1.0)
+    static let primaryLight = Color(red: 0.35, green: 0.65, blue: 1.0)
+    
+    // ダークモード用背景・カード
+    static let background = Color(red: 0.05, green: 0.05, blue: 0.07) // ほぼ黒
+    static let card = Color(red: 0.12, green: 0.12, blue: 0.15)       // ダークグレー
+    
+    static let textPrimary = Color.white
+    static let textSecondary = Color(red: 0.65, green: 0.68, blue: 0.75)
 
-    static let normal = Color(red: 0.23, green: 0.51, blue: 0.96)
-    static let holiday = Color(red: 0.93, green: 0.35, blue: 0.35)
-    static let night = Color(red: 0.45, green: 0.30, blue: 0.80)
+    static let normal = Color(red: 0.35, green: 0.65, blue: 1.0)
+    static let holiday = Color(red: 1.0, green: 0.45, blue: 0.45)
+    static let night = Color(red: 0.65, green: 0.45, blue: 1.0)
 
     static var gradient: LinearGradient {
         LinearGradient(colors: [primary, primaryLight],
@@ -26,7 +29,7 @@ struct CardModifier: ViewModifier {
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .fill(Theme.card)
-                    .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
+                    .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 4)
             )
     }
 }
