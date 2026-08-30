@@ -30,7 +30,28 @@ final class CalendarSyncService: ObservableObject {
         calendars = store.calendars(for: .event).sorted { $0.title < $1.title }
     }
 
-    func fetchShifts(calendarID: String?, start: Date, end: Date) -> [Shift] {
+    var authorizationDescription: String {
+        if #available(iOS 17.0, *) {
+            switch EKEventStore.authorizationStatus(for: .event) {
+            case .fullAccess:    return "フルアクセス"
+            case .writeOnly:     return "追加のみ"
+            case .denied:        return "拒否"
+            case .restricted:    return "制限"
+            case .notDetermined: return "未確定"
+            @unknown default:    return "不明"
+            }
+        } else {
+            return EKEventStore.authorizationStatus(for: .event) == .authorized ? "許可済み" : "未許可"
+        }
+    }
+
+    struct FetchResult {
+        let shifts: [Shift]
+        let rawCount: Int
+        let allDayCount: Int
+    }
+
+    func fetchShifts(calendarID: String?, start: Date, end: Date) -> FetchResult {
         var target: [EKCalendar]? = nil
         if let calendarID,
            let cal = calendars.first(where: { $0.calendarIdentifier == calendarID }) {
@@ -40,7 +61,9 @@ final class CalendarSyncService: ObservableObject {
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: target)
         let events = store.events(matching: predicate)
 
-        return events
+        let allDayCount = events.filter { $0.isAllDay }.count
+
+        let shifts = events
             .filter { !$0.isAllDay }
             .map { event in
                 Shift(
@@ -54,5 +77,7 @@ final class CalendarSyncService: ObservableObject {
                     isFromCalendar: true
                 )
             }
+
+        return FetchResult(shifts: shifts, rawCount: events.count, allDayCount: allDayCount)
     }
 }
