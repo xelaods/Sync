@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 // MARK: - Root
 
@@ -6,7 +7,7 @@ struct ContentView: View {
     var body: some View {
         TabView {
             SummaryView()
-                .tabItem { Label("ホーム", systemImage: "yensign.circle.fill") }
+                .tabItem { Label("給料", systemImage: "yensign.circle.fill") }
 
             ShiftsView()
                 .tabItem { Label("シフト", systemImage: "calendar") }
@@ -18,7 +19,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Summary
+// MARK: - Summary (給料)
 
 struct SummaryView: View {
     @EnvironmentObject private var store: ShiftStore
@@ -27,19 +28,40 @@ struct SummaryView: View {
     private var summary: SalarySummary {
         SalaryCalculator.summary(for: store.shifts, settings: store.settings, month: month)
     }
+    
+    private var monthlyData: [(month: Date, amount: Int)] {
+        let calendar = Calendar.current
+        let now = Date()
+        let year = calendar.component(.year, from: now)
+        
+        var data: [(Date, Int)] = []
+        for m in 1...12 {
+            var comps = DateComponents()
+            comps.year = year
+            comps.month = m
+            if let date = calendar.date(from: comps) {
+                if date <= now || calendar.isDate(date, equalTo: now, toGranularity: .month) {
+                    let sum = SalaryCalculator.summary(for: store.shifts, settings: store.settings, month: date)
+                    data.append((date, sum.totalAmount))
+                }
+            }
+        }
+        return data
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
                     headerCard
+                    chartCard
                     hoursCard
                     breakdownCard
                 }
                 .padding()
             }
             .background(Theme.background.ignoresSafeArea())
-            .navigationTitle("Sync")
+            .navigationTitle("給料")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -96,6 +118,39 @@ struct SummaryView: View {
         return days.count
     }
 
+    private var chartCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("月別推移 (今年)").font(.subheadline.weight(.semibold)).foregroundColor(Theme.textSecondary)
+            
+            if monthlyData.isEmpty {
+                Text("データがありません").foregroundColor(Theme.textSecondary).frame(maxWidth: .infinity, minHeight: 150)
+            } else {
+                Chart(monthlyData, id: \.month) { item in
+                    BarMark(
+                        x: .value("月", item.month, unit: .month),
+                        y: .value("給与", item.amount)
+                    )
+                    .foregroundStyle(Theme.gradient)
+                    .cornerRadius(4)
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .month)) { value in
+                        AxisValueLabel(format: .dateTime.month(.narrow))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks { _ in
+                        AxisGridLine().foregroundStyle(Color.gray.opacity(0.2))
+                        AxisValueLabel().foregroundStyle(Theme.textSecondary)
+                    }
+                }
+                .frame(height: 200)
+            }
+        }
+        .card()
+    }
+
     private var hoursCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("勤務時間").font(.subheadline.weight(.semibold)).foregroundColor(Theme.textSecondary)
@@ -123,7 +178,7 @@ struct SummaryView: View {
             amountRow("通常", amount: summary.normalAmount)
             amountRow("休日", amount: summary.holidayAmount)
             amountRow("夜勤", amount: summary.nightAmount)
-            Divider()
+            Divider().background(Color.gray.opacity(0.2))
             HStack {
                 Text("合計").font(.subheadline.weight(.bold))
                 Spacer()
@@ -146,15 +201,13 @@ struct SummaryView: View {
     }
 }
 
-// MARK: - Shifts (Calendar)
+// MARK: - Shifts (シフト)
 
 struct ShiftsView: View {
     @EnvironmentObject private var store: ShiftStore
     @State private var selectedDate = Date()
     @State private var editingShift: Shift?
     @State private var isAdding = false
-
-    private var month: Date { selectedDate }
 
     private var dayShifts: [Shift] {
         store.shifts
@@ -176,7 +229,15 @@ struct ShiftsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button { isAdding = true } label: { Image(systemName: "plus") }
+                    HStack(spacing: 16) {
+                        Button {
+                            store.syncYearToDate()
+                        } label: {
+                            Image(systemName: "calendar.badge.clock")
+                        }
+                        
+                        Button { isAdding = true } label: { Image(systemName: "plus") }
+                    }
                 }
             }
             .sheet(isPresented: $isAdding) { ShiftEditView(shift: nil) }
