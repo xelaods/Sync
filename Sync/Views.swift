@@ -28,12 +28,12 @@ struct SummaryView: View {
     private var summary: SalarySummary {
         SalaryCalculator.summary(for: store.shifts, settings: store.settings, month: month)
     }
-    
+
     private var monthlyData: [(month: Date, amount: Int)] {
         let calendar = Calendar.current
         let now = Date()
         let year = calendar.component(.year, from: now)
-        
+
         var data: [(Date, Int)] = []
         for m in 1...12 {
             var comps = DateComponents()
@@ -121,7 +121,7 @@ struct SummaryView: View {
     private var chartCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("月別推移 (今年)").font(.subheadline.weight(.semibold)).foregroundColor(Theme.textSecondary)
-            
+
             if monthlyData.isEmpty {
                 Text("データがありません").foregroundColor(Theme.textSecondary).frame(maxWidth: .infinity, minHeight: 150)
             } else {
@@ -134,7 +134,7 @@ struct SummaryView: View {
                     .cornerRadius(4)
                 }
                 .chartXAxis {
-                    AxisMarks(values: .stride(by: .month)) { value in
+                    AxisMarks(values: .stride(by: .month)) { _ in
                         AxisValueLabel(format: .dateTime.month(.narrow))
                             .foregroundStyle(Theme.textSecondary)
                     }
@@ -208,6 +208,8 @@ struct ShiftsView: View {
     @State private var selectedDate = Date()
     @State private var editingShift: Shift?
     @State private var isAdding = false
+    @State private var showAlert = false
+    @State private var alertMessage = ""
 
     private var dayShifts: [Shift] {
         store.shifts
@@ -228,20 +230,35 @@ struct ShiftsView: View {
             .navigationTitle("シフト")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    HStack(spacing: 16) {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    HStack(spacing: 24) {
                         Button {
-                            store.syncYearToDate()
+                            store.syncYearToDate { message in
+                                alertMessage = message
+                                showAlert = true
+                            }
                         } label: {
-                            Image(systemName: "calendar.badge.clock")
+                            if store.isSyncing {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
                         }
-                        
-                        Button { isAdding = true } label: { Image(systemName: "plus") }
+                        .disabled(store.isSyncing)
+
+                        Button { isAdding = true } label: {
+                            Image(systemName: "plus")
+                        }
                     }
                 }
             }
             .sheet(isPresented: $isAdding) { ShiftEditView(shift: nil) }
             .sheet(item: $editingShift) { ShiftEditView(shift: $0) }
+            .alert("同期結果", isPresented: $showAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(alertMessage)
+            }
         }
     }
 
