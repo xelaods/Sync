@@ -8,6 +8,7 @@ struct SyncApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(store)
+                .preferredColorScheme(.dark) // ダークモード強制
         }
     }
 }
