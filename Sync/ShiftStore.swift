@@ -82,7 +82,7 @@ final class ShiftStore: ObservableObject {
         shifts.removeAll { $0.id == shift.id }
     }
 
-    // MARK: - Calendar Sync
+    // MARK: - Calendar Read
 
     func requestCalendarAccess() {
         sync.requestAccess()
@@ -137,6 +137,51 @@ final class ShiftStore: ObservableObject {
                     msg += "\niPhone上にイベントが見つかりません。\niPhoneの 設定→カレンダー→同期→「すべてのイベント」を確認してください。"
                 } else {
                     msg += "\n同期が完了しました。"
+                }
+
+                completion(msg)
+            }
+        }
+    }
+
+    // MARK: - Calendar Write (アプリ → Googleカレンダー)
+
+    func pushYearShiftsToCalendar(completion: @escaping (String) -> Void) {
+        guard sync.isAuthorized else {
+            completion("❌ カレンダーに未接続です。\n設定タブの「カレンダーへ接続」から許可してください。")
+            return
+        }
+
+        isSyncing = true
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+
+            let calendar = Calendar.current
+            let now = Date()
+            guard let startOfYear = calendar.date(from: calendar.dateComponents([.year], from: now)) else {
+                DispatchQueue.main.async {
+                    self.isSyncing = false
+                    completion("❌ 期間の計算に失敗しました。")
+                }
+                return
+            }
+
+            let targets = self.shifts.filter { $0.start >= startOfYear && !$0.isExcluded }
+            let result = self.sync.writeShifts(targets, calendarID: self.selectedCalendarID)
+
+            DispatchQueue.main.async {
+                self.isSyncing = false
+
+                var msg = ""
+                if let title = result.calendarTitle {
+                    msg += "対象: \(title)\n"
+                }
+                msg += "追加: \(result.added)件\n"
+                msg += "既に存在したのでスキップ: \(result.skipped)件"
+
+                if result.added == 0 && result.skipped == 0 {
+                    msg = "追加できるシフトがありません。\n先にシフトを取得または追加してください。"
                 }
 
                 completion(msg)
