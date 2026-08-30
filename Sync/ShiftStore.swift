@@ -54,14 +54,29 @@ final class ShiftStore: ObservableObject {
         UserDefaults.standard.set(selectedCalendarID, forKey: calendarKey)
     }
 
-    // MARK: - CRUD
-
+    // MARK: - CRUD & Overlap Handling
+    
     func upsert(_ shift: Shift) {
+        // 自分自身以外で時間が被っているものを削除
+        shifts.removeAll { existing in
+            existing.id != shift.id && existing.start < shift.end && shift.start < existing.end
+        }
+        
         if let index = shifts.firstIndex(where: { $0.id == shift.id }) {
             shifts[index] = shift
         } else {
             shifts.append(shift)
         }
+    }
+
+    func addShifts(_ newShifts: [Shift]) {
+        // 新しいシフト群と時間が被る既存シフトを削除
+        let nonOverlapping = shifts.filter { existing in
+            !newShifts.contains { new in
+                existing.start < new.end && new.start < existing.end
+            }
+        }
+        shifts = nonOverlapping + newShifts
     }
 
     func delete(_ shift: Shift) {
@@ -79,8 +94,19 @@ final class ShiftStore: ObservableObject {
         let fetched = sync.fetchShifts(calendarID: selectedCalendarID,
                                        start: interval.start,
                                        end: interval.end)
-        shifts.removeAll { $0.isFromCalendar && interval.contains($0.start) }
-        shifts.append(contentsOf: fetched)
+        addShifts(fetched)
+    }
+    
+    func syncYearToDate() {
+        let calendar = Calendar.current
+        let now = Date()
+        let yearComponents = calendar.dateComponents([.year], from: now)
+        guard let startOfYear = calendar.date(from: yearComponents) else { return }
+        
+        let fetched = sync.fetchShifts(calendarID: selectedCalendarID,
+                                       start: startOfYear,
+                                       end: now)
+        addShifts(fetched)
     }
 
     // MARK: - Sample Data
@@ -107,6 +133,6 @@ final class ShiftStore: ObservableObject {
             samples.append(Shift(title: "サンプル夜勤", start: s, end: e, breakMinutes: 60, kind: .night))
         }
 
-        shifts.append(contentsOf: samples)
+        addShifts(samples)
     }
 }
