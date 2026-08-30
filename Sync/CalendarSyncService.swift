@@ -58,26 +58,4 @@ final class CalendarSyncService: ObservableObject {
             target = [cal]
         }
 
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: target)
-        let events = store.events(matching: predicate)
-
-        let allDayCount = events.filter { $0.isAllDay }.count
-
-        let shifts = events
-            .filter { !$0.isAllDay }
-            .map { event in
-                Shift(
-                    title: event.title ?? "勤務",
-                    start: event.startDate,
-                    end: event.endDate,
-                    breakMinutes: 0,
-                    kind: .normal,
-                    isExcluded: false,
-                    memo: event.notes ?? "",
-                    isFromCalendar: true
-                )
-            }
-
-        return FetchResult(shifts: shifts, rawCount: events.count, allDayCount: allDayCount)
-    }
-}
+        let predicate = store.predicateForEvents(withStart: start,
