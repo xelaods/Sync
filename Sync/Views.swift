@@ -233,7 +233,7 @@ struct ShiftsView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 24) {
                         Button {
-                            store.syncYearToDate { message in
+                            store.pushYearShiftsToCalendar { message in
                                 alertMessage = message
                                 showAlert = true
                             }
@@ -241,7 +241,7 @@ struct ShiftsView: View {
                             if store.isSyncing {
                                 ProgressView()
                             } else {
-                                Image(systemName: "arrow.clockwise")
+                                Image(systemName: "arrow.up.circle")
                             }
                         }
                         .disabled(store.isSyncing)
@@ -254,7 +254,7 @@ struct ShiftsView: View {
             }
             .sheet(isPresented: $isAdding) { ShiftEditView(shift: nil) }
             .sheet(item: $editingShift) { ShiftEditView(shift: $0) }
-            .alert("同期結果", isPresented: $showAlert) {
+            .alert("Googleカレンダーへ追加", isPresented: $showAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(alertMessage)
@@ -407,6 +407,8 @@ struct ShiftEditView: View {
 
 struct SettingsView: View {
     @EnvironmentObject private var store: ShiftStore
+    @State private var showAlert = false
+    @State private var alertMessage = ""
 
     var body: some View {
         NavigationStack {
@@ -429,6 +431,13 @@ struct SettingsView: View {
                         Button("今月のシフトを同期") {
                             store.syncMonth(Date())
                         }
+
+                        Button("年初からシフトを再取得") {
+                            store.syncYearToDate { message in
+                                alertMessage = message
+                                showAlert = true
+                            }
+                        }
                     } else {
                         Button("カレンダーへ接続") {
                             store.requestCalendarAccess()
@@ -443,6 +452,11 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("設定")
+            .alert("同期結果", isPresented: $showAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(alertMessage)
+            }
         }
     }
 
