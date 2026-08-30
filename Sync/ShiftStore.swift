@@ -7,6 +7,7 @@ final class ShiftStore: ObservableObject {
     @Published var shifts: [Shift] = [] { didSet { saveShifts() } }
     @Published var settings: WageSettings = WageSettings() { didSet { saveSettings() } }
     @Published var selectedCalendarID: String? = nil { didSet { saveCalendarSelection() } }
+    @Published var isSyncing = false
 
     let sync = CalendarSyncService()
 
@@ -55,13 +56,12 @@ final class ShiftStore: ObservableObject {
     }
 
     // MARK: - CRUD & Overlap Handling
-    
+
     func upsert(_ shift: Shift) {
-        // 自分自身以外で時間が被っているものを削除
         shifts.removeAll { existing in
             existing.id != shift.id && existing.start < shift.end && shift.start < existing.end
         }
-        
+
         if let index = shifts.firstIndex(where: { $0.id == shift.id }) {
             shifts[index] = shift
         } else {
@@ -70,7 +70,6 @@ final class ShiftStore: ObservableObject {
     }
 
     func addShifts(_ newShifts: [Shift]) {
-        // 新しいシフト群と時間が被る既存シフトを削除
         let nonOverlapping = shifts.filter { existing in
             !newShifts.contains { new in
                 existing.start < new.end && new.start < existing.end
@@ -91,22 +90,58 @@ final class ShiftStore: ObservableObject {
 
     func syncMonth(_ month: Date) {
         guard let interval = Calendar.current.dateInterval(of: .month, for: month) else { return }
-        let fetched = sync.fetchShifts(calendarID: selectedCalendarID,
-                                       start: interval.start,
-                                       end: interval.end)
-        addShifts(fetched)
+        let result = sync.fetchShifts(calendarID: selectedCalendarID,
+                                      start: interval.start,
+                                      end: interval.end)
+        addShifts(result.shifts)
     }
-    
-    func syncYearToDate() {
-        let calendar = Calendar.current
-        let now = Date()
-        let yearComponents = calendar.dateComponents([.year], from: now)
-        guard let startOfYear = calendar.date(from: yearComponents) else { return }
-        
-        let fetched = sync.fetchShifts(calendarID: selectedCalendarID,
-                                       start: startOfYear,
-                                       end: now)
-        addShifts(fetched)
+
+    func syncYearToDate(completion: @escaping (String) -> Void) {
+        guard sync.isAuthorized else {
+            completion("❌ カレンダーに未接続です。\n設定タブの「カレンダーへ接続」から許可してください。")
+            return
+        }
+
+        isSyncing = true
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+
+            let calendar = Calendar.current
+            let now = Date()
+            guard let startOfYear = calendar.date(from: calendar.dateComponents([.year], from: now)) else {
+                DispatchQueue.main.async {
+                    self.isSyncing = false
+                    completion("❌ 同期期間の計算に失敗しました。")
+                }
+                return
+            }
+
+            let result = self.sync.fetchShifts(
+                calendarID: self.selectedCalendarID,
+                start: startOfYear,
+                end: now
+            )
+
+            DispatchQueue.main.async {
+                self.addShifts(result.shifts)
+                self.isSyncing = false
+
+                var msg = ""
+                msg += "権限: \(self.sync.authorizationDescription)\n"
+                msg += "対象カレンダー: \(self.selectedCalendarID == nil ? "すべて (検出 \(self.sync.calendars.count)件)" : "選択中")\n"
+                msg += "期間内のiPhone上イベント: \(result.rawCount)件\n"
+                msg += "(うち終日イベントで除外: \(result.allDayCount)件)\n"
+
+                if result.rawCount == 0 {
+                    msg += "\niPhone上にイベントが見つかりません。\niPhoneの 設定→カレンダー→同期→「すべてのイベント」を確認してください。"
+                } else {
+                    msg += "\n同期が完了しました。"
+                }
+
+                completion(msg)
+            }
+        }
     }
 
     // MARK: - Sample Data
